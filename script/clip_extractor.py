@@ -49,7 +49,7 @@ parser.add_argument(
     "--scenesfile",
     default=None,
     type=str,
-    help="Path to the scenes file, a JSON file that contains info about the start and end positions to clip.",
+    help="Path to the scenes file, a CSV file that contains info about the start and end positions to clip.",
 )
 
 parser.add_argument(
@@ -243,20 +243,21 @@ def main(args):
     # Load scenes info
     SCENES_FILE = args.scenesfile
     if SCENES_FILE is None:
-        SCENES_FILE = op.join(DATA_PATH, "scenes.json")
-    SCENES_FILE = op.join(DATA_PATH, "code", "scenes","scenes_mastersheet.csv")
+        SCENES_FILE = op.join(DATA_PATH, "code", 'annotations', "scenes", 'ressources', "scenes_mastersheet.csv")
 
     scenes_info = pd.read_csv(SCENES_FILE)
 
     #scenes_info = correct_xscroll(scenes_info)
     scenes_info_dict = {}
     for idx, row in scenes_info.iterrows():
-        scene_id = f'w{row["World"]}l{row["Level"]}s{row["Scene"]}'
-        scenes_info_dict[scene_id] = {}
-        scenes_info_dict[scene_id]['start'] = row['Entry point']
-        scenes_info_dict[scene_id]['end'] = row['Exit point']
-        scenes_info_dict[scene_id]['level_layout'] = row['Level layout']
-
+        try:
+            scene_id = f'w{int(row["World"])}l{int(row["Level"])}s{int(row["Scene"])}'
+            scenes_info_dict[scene_id] = {}
+            scenes_info_dict[scene_id]['start'] = int(row['Entry point'])
+            scenes_info_dict[scene_id]['end'] = int(row['Exit point'])
+            scenes_info_dict[scene_id]['level_layout'] = int(row['Layout'])
+        except:
+            continue
     # Setup output folder
     CLIPS_FOLDER = args.output
     if CLIPS_FOLDER is None:
@@ -301,7 +302,7 @@ def main(args):
                             print("Checking : " + bk2_file)
                             rep_order_string = f'{str(ses).zfill(3)}{str(run).zfill(2)}{str(bk2_idx).zfill(2)}'
                             curr_level = bk2_file.split("/")[-1].split("_")[-2].split('-')[1]
-                            if curr_level == 'w1l1': ## remove/replace later
+                            if curr_level in [x.split('s')[0] for x in scenes_info_dict.keys()]:
                                 repvars, frames_list = get_variables_from_replay(bk2_file, skip_first_step=bk2_idx==0, inttype=retro.data.Integrations.CUSTOM_ONLY)
                                 # Get some info about current repetition
                                 n_frames_total = len(frames_list)
@@ -311,8 +312,7 @@ def main(args):
                                     repvars['player_x_pos'].append(repvars['player_x_posHi'][idx]*256 + repvars['player_x_posLo'][idx])
                                 
                                 # Look for clips
-                                for current_scene in scenes_info_dict.keys():
-                                    print(current_scene)
+                                for current_scene in [x for x in scenes_info_dict.keys() if curr_level in x]:
                                     scenes_info_found = []
                                     print(f'Scene {current_scene} : start = {scenes_info_dict[current_scene]["start"]}, end = {scenes_info_dict[current_scene]["end"]}')
                                     start_found = False
@@ -343,7 +343,7 @@ def main(args):
                                         selected_frames = frames_list[start_idx:end_idx]
                                         clip_code = f'{rep_order_string}{str(start_idx).zfill(7)}'
                                         assert len(clip_code) == 14, print(rep_order_string, start_idx)
-                                        clip_fname = op.join(CLIPS_FOLDER, f"{repvars['subject']}_{repvars['session']}_{repvars['level']}_{repvars['repetition']}_scene-{current_scene.split('s')[1]}_code-{clip_code}.{args.clip_extension}")
+                                        clip_fname = op.join(CLIPS_FOLDER, f"{repvars['subject']}_{repvars['session']}_{repvars['level']}_{repvars['repetition']}_scene-{int(current_scene.split('s')[1])}_code-{clip_code}.{args.clip_extension}")
                                         if args.clip_extension == 'gif':
                                             make_gif(selected_frames, clip_fname)
                                         elif args.clip_extension in ['mp3', 'mp4']:
