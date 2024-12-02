@@ -261,7 +261,7 @@ def main(args):
     # Setup output folder
     CLIPS_FOLDER = args.output
     if CLIPS_FOLDER is None:
-        CLIPS_FOLDER = op.join(DATA_PATH, "pattern_clips")
+        CLIPS_FOLDER = op.join(DATA_PATH, "scene_clips")
         os.makedirs(CLIPS_FOLDER, exist_ok=True)
 
     # Integrate game
@@ -328,12 +328,16 @@ def main(args):
                                                 start_found = True
                                         else:
                                             # Look for end
-                                            if (repvars['player_x_pos'][frame_idx] >= scenes_info_dict[current_scene]['end'] and 
-                                                repvars['player_x_pos'][frame_idx-1] < scenes_info_dict[current_scene]['end']):
+                                            if (
+                                                (repvars['player_x_pos'][frame_idx] >= scenes_info_dict[current_scene]['end'] and 
+                                                repvars['player_x_pos'][frame_idx-1] < scenes_info_dict[current_scene]['end']) or 
+                                                (repvars['lives'][frame_idx]-repvars['lives'][frame_idx-1] < 0)
+                                               ):
                                                 end_idx = frame_idx
                                                 start_found = False
                                                 scenes_info_found.append([start_idx, end_idx])
-                                            elif (repvars['player_x_pos'][frame_idx] >= scenes_info_dict[current_scene]['start'] and 
+                                            elif (
+                                                  repvars['player_x_pos'][frame_idx] >= scenes_info_dict[current_scene]['start'] and 
                                                   repvars['player_x_pos'][frame_idx-1] < scenes_info_dict[current_scene]['start']):
                                                 start_idx = frame_idx
 
