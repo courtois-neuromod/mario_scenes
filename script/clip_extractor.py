@@ -18,6 +18,7 @@
 import argparse
 import os
 import os.path as op
+import gzip
 import retro
 import pandas as pd
 import json
@@ -119,8 +120,10 @@ def replay_bk2(
         frame, rew, terminate, truncate, info = emulator.step(keys)
         sound = {"audio": emulator.em.get_audio(), "audio_rate": emulator.em.get_audio_rate()}
         annotations = {"reward": rew, "done": terminate, "info": info}
-        yield frame, keys, annotations, sound, actions
+        state = emulator.em.get_state()
+        yield frame, keys, annotations, sound, actions, state
     emulator.close()
+    movie.close()
 
 
 def get_variables_from_replay(bk2_fpath, skip_first_step, game=None, scenario=None, inttype=retro.data.Integrations.CUSTOM_ONLY):
@@ -152,7 +155,7 @@ def get_variables_from_replay(bk2_fpath, skip_first_step, game=None, scenario=No
     all_frames = []
     all_keys = []
     all_info = []
-    for frame, keys, annotations, sound, actions in replay:
+    for frame, keys, annotations, sound, actions, state in replay:
         all_keys.append(keys)
         all_info.append(annotations["info"])
         all_frames.append(frame)
@@ -235,6 +238,42 @@ def make_mp4(selected_frames, movie_fname):
         writer.writeFrame(np.array(im))
     writer.close()
 
+def generate_savestate_from_frame(
+    start_frame, bk2_fpath, output_fname, skip_first_step=True, game=None, scenario=None, inttype=retro.data.Integrations.CUSTOM_ONLY
+):
+    """Replays a bk2 file up to a certain frame (the start_frame) and creates a savestate.
+
+    Example
+    -------
+    ```Data path to look for the stimuli files (rom, state files, data.json etc...).(path):
+        all_frames.append(frame)
+        all_keys.append(keys)
+    ```
+
+    Parameters
+    ----------
+    bk2_path : str
+        Path to the bk2 file to replay.
+    skip_first_step : bool
+        Whether to skip the first step before starting the replay. The intended use of
+        gym retro is to do so (i.e. True) but if the recording was not initiated as intended
+        per gym-retro, not skipping (i.e. False) might be required. Default is True.
+    scenario : str
+        Path to the scenario json file. If None, the scenario.json file in the game integration
+        folder will be used. Default is None.
+    inttype : gym-retro Integration
+        Type of gym-retro integration to use. Default is `retro.data.Integrations.CUSTOM_ONLY`
+        for custom integrations, for default integrations shipped with gym-retro, use
+        `retro.data.Integrations.STABLE`.
+
+    """
+    replay = replay_bk2(bk2_fpath, skip_first_step=skip_first_step, game=game, scenario=scenario, inttype=inttype)
+    for frame_idx, (frame, keys, annotations, sound, actions, state) in enumerate(replay):
+        if frame_idx == start_frame:
+            with gzip.open(output_fname, "wb") as fh:
+                fh.write(state)
+            break
+
 
 def main(args):
     # Get datapath
@@ -263,6 +302,9 @@ def main(args):
     if CLIPS_FOLDER is None:
         CLIPS_FOLDER = op.join(DATA_PATH, "scene_clips")
         os.makedirs(CLIPS_FOLDER, exist_ok=True)
+
+    STATES_FOLDER = CLIPS_FOLDER.replace("scene_clips", "savestates_clips")
+    os.makedirs(STATES_FOLDER, exist_ok=True)
 
     # Integrate game
     os.chdir(DATA_PATH)
@@ -302,8 +344,9 @@ def main(args):
                             print("Checking : " + bk2_file)
                             rep_order_string = f'{str(ses).zfill(3)}{str(run).zfill(2)}{str(bk2_idx).zfill(2)}'
                             curr_level = bk2_file.split("/")[-1].split("_")[-2].split('-')[1]
+                            skip_first_step = bk2_idx==0
                             if curr_level in [x.split('s')[0] for x in scenes_info_dict.keys()]:
-                                repvars, frames_list = get_variables_from_replay(bk2_file, skip_first_step=bk2_idx==0, inttype=retro.data.Integrations.CUSTOM_ONLY)
+                                repvars, frames_list = get_variables_from_replay(bk2_file, skip_first_step=skip_first_step, inttype=retro.data.Integrations.CUSTOM_ONLY)
                                 # Get some info about current repetition
                                 n_frames_total = len(frames_list)
                                 # Create player_x_pos from Hi and Lo
@@ -352,6 +395,11 @@ def main(args):
                                             make_gif(selected_frames, clip_fname)
                                         elif args.clip_extension in ['mp3', 'mp4']:
                                             make_mp4(selected_frames, clip_fname)
+
+                                        # Save savestate
+                                        savestate_fname = op.join(STATES_FOLDER, f"{repvars['subject']}_{repvars['session']}_{repvars['level']}_{repvars['repetition']}_scene-{int(current_scene.split('s')[1])}_code-{clip_code}.state")
+                                        generate_savestate_from_frame(start_idx, bk2_file, savestate_fname, skip_first_step=skip_first_step)
+
                                         subjects.append(sub)
                                         clip_codes.append(clip_code)
                                         clip_bounds.append(pattern)
