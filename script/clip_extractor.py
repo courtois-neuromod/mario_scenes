@@ -363,7 +363,7 @@ def main(args):
     SCENES_FILE = args.scenesfile
     if SCENES_FILE is None:
         SCENES_FILE = op.join(
-            DATA_PATH, "code", "annotations", "scenes", "ressources", "scenes_mastersheet.csv"
+            DATA_PATH, "code", "annotations", "scenes", "resources", "scenes_mastersheet.csv"
         )
 
     scenes_info_dict = load_scenes_info(SCENES_FILE)
@@ -423,12 +423,12 @@ def main(args):
     # Prepare data for saving
     # Save dataset description as per BIDS derivatives
     dataset_description = {
-        'Name': 'Mario Scenes Dataset',
+        'Name': 'Mario Scenes',
         'BIDSVersion': '1.6.0',
         'GeneratedBy': [{
-            'Name': 'Mario Scenes Extraction',
+            'Name': 'Courtois Neuromod',
             'Version': '1.0.0',
-            'CodeURL': 'https://github.com/your_repo/clip_extractor.py'  # Update with actual URL
+            'CodeURL': 'https://github.com/courtois-neuromod/mario_scenes/script/clip_extractor.py'  # Update with actual URL
         }],
         'SourceDatasets': [{'URL': 'n/a'}],
         'License': 'CC0',
