@@ -23,7 +23,7 @@ def replay_bk2(
     if game is None:
         game = movie.get_game()
     logging.debug(f"Creating emulator for game: {game}")
-    emulator = retro.make(game, scenario=scenario, inttype=inttype, render_mode=None)
+    emulator = retro.make(game, scenario=scenario, inttype=inttype)
     emulator.initial_state = movie.get_state()
     actions = emulator.buttons
     emulator.reset()
