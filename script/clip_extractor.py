@@ -159,7 +159,6 @@ def process_bk2_file(bk2_info, args, scenes_info_dict, DERIVATIVES_FOLDER, STIMU
     # Add stimuli path in each child process
     retro.data.Integrations.add_custom_path(STIMULI_PATH)
 
-    clip_data_list = []
     error_logs = []
     processing_stats = {
         'bk2_file': bk2_info['bk2_file'],
@@ -230,22 +229,30 @@ def process_bk2_file(bk2_info, args, scenes_info_dict, DERIVATIVES_FOLDER, STIMU
                     assert len(clip_code) == 14, f"Invalid clip code: {clip_code}"
 
                     # Construct BIDS-compliant paths
-                    sub_folder = op.join(DERIVATIVES_FOLDER, f"sub-{sub}")
+                    # Using 'mario_scenes' as the pipeline name
+                    pipeline_name = 'mario_scenes'  # Name of the pipeline
+                    deriv_folder = op.join(DERIVATIVES_FOLDER, pipeline_name)
+                    sub_folder = op.join(deriv_folder, f"sub-{sub}")
                     ses_folder = op.join(sub_folder, f"ses-{ses}")
-                    clip_folder = op.join(ses_folder, "clips")
-                    state_folder = op.join(ses_folder, "savestates")
-                    os.makedirs(clip_folder, exist_ok=True)
-                    os.makedirs(state_folder, exist_ok=True)
+                    beh_folder = op.join(ses_folder, 'beh')
+                    clips_folder = op.join(beh_folder, 'clips')
+                    savestates_folder = op.join(beh_folder, 'savestates')
+                    os.makedirs(clips_folder, exist_ok=True)
+                    os.makedirs(savestates_folder, exist_ok=True)
+
+                    # File names
+                    entities = (
+                        f"sub-{sub}_ses-{ses}_run-{run}_level-{repvars['level']}_"
+                        f"scene-{int(current_scene.split('s')[1])}_clip-{clip_code}"
+                    )
 
                     clip_fname = op.join(
-                        clip_folder,
-                        f"sub-{sub}_ses-{ses}_run-{run}_level-{repvars['level']}_"
-                        f"scene-{int(current_scene.split('s')[1])}_clip-{clip_code}.{args.clip_extension}",
+                        clips_folder,
+                        f"{entities}_beh.{args.clip_extension}",
                     )
                     savestate_fname = op.join(
-                        state_folder,
-                        f"sub-{sub}_ses-{ses}_run-{run}_level-{repvars['level']}_"
-                        f"scene-{int(current_scene.split('s')[1])}_state-{clip_code}.state",
+                        savestates_folder,
+                        f"{entities}_beh.state",
                     )
 
                     # Check if output files already exist
@@ -283,26 +290,6 @@ def process_bk2_file(bk2_info, args, scenes_info_dict, DERIVATIVES_FOLDER, STIMU
                         with open(metadata_fname, 'w') as json_file:
                             json.dump(metadata, json_file, indent=4)
 
-                        clip_variables = {}
-                        for key in repvars.keys():
-                            if len(repvars[key]) == n_frames_total:
-                                clip_variables[key] = repvars[key][start_idx:end_idx]
-                            else:
-                                clip_variables[key] = repvars[key]
-
-                        clip_data = {
-                            'subject': sub,
-                            'session': ses,
-                            'run': run,
-                            'clip_code': clip_code,
-                            'clip_bounds': pattern,
-                            'clip_vars': clip_variables,
-                            'clip_scene': current_scene.split('s')[1],
-                            'clip_fname': clip_fname,
-                            'savestate_fname': savestate_fname,
-                            'metadata_fname': metadata_fname,
-                        }
-                        clip_data_list.append(clip_data)
                         processing_stats['clips_processed'] += 1
                     except Exception as e:
                         error_message = f"Error processing clip {clip_code} in bk2 file {bk2_file}: {str(e)}"
@@ -314,7 +301,7 @@ def process_bk2_file(bk2_info, args, scenes_info_dict, DERIVATIVES_FOLDER, STIMU
         error_logs.append(error_message)
         processing_stats['errors'] += 1
 
-    return clip_data_list, error_logs, processing_stats
+    return error_logs, processing_stats
 
 
 def collect_bk2_files(DATA_PATH, subjects=None, sessions=None):
@@ -427,7 +414,7 @@ def main(args):
     all_error_logs = []
 
     # Process results
-    for _, error_logs, processing_stats in results:
+    for error_logs, processing_stats in results:
         total_processing_stats['total_clips_processed'] += processing_stats.get('clips_processed', 0)
         total_processing_stats['total_clips_skipped'] += processing_stats.get('clips_skipped', 0)
         total_processing_stats['total_errors'] += processing_stats.get('errors', 0)
@@ -436,21 +423,23 @@ def main(args):
     # Prepare data for saving
     # Save dataset description as per BIDS derivatives
     dataset_description = {
-        'Name': 'Mario Dataset Derivatives',
+        'Name': 'Mario Scenes Dataset',
         'BIDSVersion': '1.6.0',
-        'PipelineDescription': {
-            'Name': 'Mario Clip Extraction',
+        'GeneratedBy': [{
+            'Name': 'Mario Scenes Extraction',
             'Version': '1.0.0',
             'CodeURL': 'https://github.com/your_repo/clip_extractor.py'  # Update with actual URL
-        },
-        'SourceDatasets': [DATA_PATH],
+        }],
+        'SourceDatasets': [{'URL': 'n/a'}],
         'License': 'CC0',
     }
-    with open(op.join(DERIVATIVES_FOLDER, "dataset_description.json"), "w") as f:
+    deriv_folder = op.join(DERIVATIVES_FOLDER, 'mario_scenes')
+    os.makedirs(deriv_folder, exist_ok=True)
+    with open(op.join(deriv_folder, "dataset_description.json"), "w") as f:
         json.dump(dataset_description, f, indent=4)
 
     # Write error logs to a log file
-    log_file = op.join(DERIVATIVES_FOLDER, "processing_log.txt")
+    log_file = op.join(deriv_folder, "processing_log.txt")
     with open(log_file, "w") as f:
         f.write("Processing Log\n")
         f.write("=================\n")
