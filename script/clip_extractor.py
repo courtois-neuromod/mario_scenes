@@ -13,7 +13,7 @@ import logging
 import re
 from tqdm import tqdm
 from tqdm_joblib import tqdm_joblib
-
+import traceback
 
 def replay_bk2(
     bk2_path, skip_first_step=True, game=None, scenario=None, inttype=retro.data.Integrations.CUSTOM_ONLY
@@ -300,6 +300,12 @@ def process_bk2_file(bk2_info, args, scenes_info_dict, DERIVATIVES_FOLDER, STIMU
         error_message = f"Error processing bk2 file {bk2_file}: {str(e)}"
         error_logs.append(error_message)
         processing_stats['errors'] += 1
+        print("Full traceback:")
+        traceback.print_exc()
+        
+        # Optionally, print just the exception message
+        print("\nError message:")
+        print(e)
 
     return error_logs, processing_stats
 
