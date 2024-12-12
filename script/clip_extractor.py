@@ -34,7 +34,7 @@ def replay_bk2(
         for p in range(movie.players):
             for i in range(emulator.num_buttons):
                 keys.append(movie.get_key(i, p))
-        frame, rew, terminate, truncate, info = emulator.step(keys)
+        frame, rew, terminate, info = emulator.step(keys)
         annotations = {"reward": rew, "done": terminate, "info": info}
         state = emulator.em.get_state()
         yield frame, keys, annotations, None, actions, state
@@ -123,18 +123,27 @@ def make_mp4(selected_frames, movie_fname):
     writer.close()
 
 
-def generate_savestate_from_frame(
-    start_frame, bk2_fpath, output_fname, skip_first_step=True, game=None, scenario=None, inttype=retro.data.Integrations.CUSTOM_ONLY
+def replay_clip_from_frame(
+    start_idx, end_idx, bk2_fpath, output_fname, skip_first_step=True, game=None, scenario=None, inttype=retro.data.Integrations.CUSTOM_ONLY
 ):
     """Replay a bk2 file up to a specific frame and create a savestate."""
     replay = replay_bk2(
         bk2_fpath, skip_first_step=skip_first_step, game=game, scenario=scenario, inttype=inttype
     )
+    states_list = []
     for frame_idx, (_, _, _, _, _, state) in enumerate(replay):
-        if frame_idx == start_frame:
+        if frame_idx == start_idx:
             with gzip.open(output_fname, "wb") as fh:
                 fh.write(state)
+        if start_idx <= frame_idx < end_idx:
+            states_list.append(state)
+        if frame_idx >= end_idx:
             break
+    # Save framewise states
+    states_fname = output_fname.replace(".state", "_frames.npz")
+    np.savez_compressed(states_fname, states_list)
+
+    
 
 
 def load_scenes_info(scenes_file):
@@ -269,9 +278,9 @@ def process_bk2_file(bk2_info, args, scenes_info_dict, DERIVATIVES_FOLDER, STIMU
                         else:
                             raise ValueError(f"Unsupported clip extension: {args.clip_extension}")
 
-                        # Save savestate
-                        generate_savestate_from_frame(
-                            start_idx, bk2_file, savestate_fname, skip_first_step=skip_first_step
+                        # Save savestate and clip frames states
+                        replay_clip_from_frame(
+                            start_idx, end_idx, bk2_file, savestate_fname, skip_first_step=skip_first_step
                         )
 
                         # Save metadata as JSON sidecar files
@@ -499,7 +508,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-n",
         "--n_jobs",
-        default=1,
+        default=16,
         type=int,
         help="Number of CPU cores to use for parallel processing.",
     )
