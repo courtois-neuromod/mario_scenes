@@ -23,7 +23,7 @@ def replay_bk2(
     if game is None:
         game = movie.get_game()
     logging.debug(f"Creating emulator for game: {game}")
-    emulator = retro.make(game, scenario=scenario, inttype=inttype)
+    emulator = retro.make(game, scenario=scenario, inttype=inttype, render_mode=None)
     emulator.initial_state = movie.get_state()
     actions = emulator.buttons
     emulator.reset()
@@ -34,7 +34,7 @@ def replay_bk2(
         for p in range(movie.players):
             for i in range(emulator.num_buttons):
                 keys.append(movie.get_key(i, p))
-        frame, rew, terminate, info = emulator.step(keys)
+        frame, rew, terminate, truncate, info = emulator.step(keys)
         annotations = {"reward": rew, "done": terminate, "info": info}
         state = emulator.em.get_state()
         yield frame, keys, annotations, None, actions, state
@@ -121,6 +121,18 @@ def make_mp4(selected_frames, movie_fname):
         im.paste(Image.fromarray(frame), (0, 0))
         writer.writeFrame(np.array(im))
     writer.close()
+
+def make_webp(selected_frames, movie_fname):
+    """Create a WebP file from a list of frames."""
+    frame_list = [Image.fromarray(np.uint8(img), "RGB") for img in selected_frames]
+
+    if not frame_list:
+        logging.warning(f"No frames to save in {movie_fname}")
+        return
+
+    frame_list[0].save(
+        movie_fname, 'WEBP', quality=50, lossless=False, save_all=True, append_images=frame_list[1:], duration=16, loop=0
+    )
 
 
 def replay_clip_from_frame(
@@ -277,6 +289,7 @@ def process_bk2_file(bk2_info, args, scenes_info_dict, DERIVATIVES_FOLDER, STIMU
                             make_mp4(selected_frames, clip_fname)
                         else:
                             raise ValueError(f"Unsupported clip extension: {args.clip_extension}")
+                        make_webp(selected_frames, clip_fname.replace(f".{args.clip_extension}", ".webp"))
 
                         # Save savestate and clip frames states
                         replay_clip_from_frame(
@@ -501,7 +514,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-ext",
         "--clip_extension",
-        default="gif",
+        default="mp4",
         type=str,
         help="Format in which the extracted clips should be saved.",
     )
