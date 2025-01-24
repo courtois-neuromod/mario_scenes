@@ -613,7 +613,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-n",
         "--n_jobs",
-        default=16,
+        default=-1,
         type=int,
         help="Number of CPU cores to use for parallel processing.",
     )
