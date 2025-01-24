@@ -30,7 +30,7 @@ python make_scene_img.py [pptx_file] [output_folder]
 Cropped images are saved in the format:
 
 ```
-<slide_title>s<box_label>.jpg
+w<world>l<level>s<scene>.jpg
 ```
 
 Example:
